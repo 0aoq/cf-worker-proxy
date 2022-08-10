@@ -124,13 +124,21 @@ self.addEventListener('fetch', function (event) {
 		return new Response(missinghost, { status: 200, headers: { "content-type": "text/html" } })
 	}
 
-	const data = await fetch(url.href, {
+	let initialFetchOptions = {
 		"headers": {
 			"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0",
-			"Referer": `https://${target}`, // should be enough to trick most websites
+			"Referer": `https://${target}`, 
 			"Origin": `https://${target}`
-		}
-	})
+		},
+		"method": request.method
+	}
+
+	if (initialFetchOptions.method !== "GET" && initialFetchOptions.method !== "HEAD") {
+		// @ts-ignore
+		initialFetchOptions.body = decodeURIComponent(await request.text())
+	}
+
+	const data = await fetch(url.href, initialFetchOptions)
 
 	let req = new Request(url.href, {
 		// @ts-ignore
