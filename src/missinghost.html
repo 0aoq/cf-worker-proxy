@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CF-WORKER-PROXY</title>
+
+    <style>
+        body {
+            background: #000;
+        }
+    </style>
+</head>
+
+<body>
+    <script>
+        const dest = prompt("Enter a URL:")
+        if (dest === null) window.location.reload()
+        const url = new URL(dest)
+        window.location.href = `${url.pathname}?ophost=${url.hostname}`
+    </script>
+</body>
+
+</html>

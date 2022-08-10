@@ -5,6 +5,9 @@
  * @license MIT
  */
 
+// @ts-ignore
+import missinghost from "./missinghost.html"
+
 export interface Env {}
 
 addEventListener("fetch", event => {
@@ -65,23 +68,12 @@ async function handleRequest(request: Request): Promise<Response> {
 		!params["ophost"]
 		&& !refParams["ophost"]
 		&& !cookieHost
-	) return new Response(`
-<p>Missing ophost!</p>
-<button>Navigate</button>
-<script>
-    document.querySelector("button").addEventListener("click", (e) => {
-        e.preventDefault()
-        const dest = prompt("Enter a URL:")
-        if (dest === null) return
-        const url = new URL(dest)
-        window.location.href = \`\${url.pathname}?ophost=\${url.hostname}\`
-    })
-</script>`, { status: 400, headers: { "content-type": "text/html" } })
+	) return new Response(missinghost, { status: 400, headers: { "content-type": "text/html" } })
 
 	const target = params["ophost"] || refParams["ophost"] || cookieHost
 	url.hostname = target
 
-	if (url.pathname === "/serviceworkers/.httpsw") {
+	if (url.pathname === "/.sw.httpsw") {
 		return new Response(`// generated ${new Date().toISOString()}
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting())
@@ -91,41 +83,52 @@ self.addEventListener('activate', event => {
   event.waitUntil(self.clients.claim())
 })
 
+async function handleRequest(request) {
+	// intercept http traffic and append the ophost
+	let newurl = new URL(request.url)
+
+	const _params = {
+		"ophost": newurl.hostname // fetch it from the other server
+	}
+
+	newurl = new URL(
+		\`\${newurl.origin}\${newurl.pathname}?\${new URLSearchParams([
+			...Array.from(newurl.searchParams.entries()),
+			...Object.entries(_params),
+		]).toString()}\`
+	)
+
+	newurl.hostname = "${worker_url}"
+
+	let req = new Request(newurl.href, {
+		"headers": {
+			"referer": "https://${worker_url}/?ophost=${target}",
+			"x-sw-intercept": "true; https://${worker_url}/.sw.httpsw/",
+			"x-renav": "https://${worker_url}/.navigate"
+		}
+	})
+
+	return fetch(newurl, req)
+}
+
 self.addEventListener('fetch', function (event) {
-    event.respondWith(
-        async function () {
-            // intercept http traffic and append the ophost
-            let newurl = new URL(event.request.url)
-
-            const _params = {
-                "ophost": "${target}"
-            }
-
-            newurl = new URL(
-                \`\${newurl.origin}\${newurl.pathname}?\${new URLSearchParams([
-                    ...Array.from(newurl.searchParams.entries()),
-                    ...Object.entries(_params),
-                ]).toString()}\`
-            )
-
-			event.request.headers.set("referer", "https://${worker_url}/?ophost=${target}")
-            newurl.hostname = "${worker_url}"
-
-            return new Response(await fetch(newurl, event.request))
-        }
-    )
+	if (new URL(event.request.url).hostname === "${worker_url}") return // requesting an already proxied service
+    event.respondWith(handleRequest(event.request))
 })`, {
 			"headers": {
 				"content-type": "text/javascript;charset=UTF-8",
 			},
 			"status": 200
 		})
+	} else if (url.pathname === "/.navigate" || url.pathname === "/.nav") {
+		return new Response(missinghost, { status: 200, headers: { "content-type": "text/html" } })
 	}
 
 	const data = await fetch(url.href, {
 		"headers": {
 			"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0",
-			"Referer": `https://${target}` // should be enough to trick most websites
+			"Referer": `https://${target}`, // should be enough to trick most websites
+			"Origin": `https://${target}`
 		}
 	})
 
@@ -171,7 +174,7 @@ self.addEventListener('fetch', function (event) {
 			// register a service worker to try to catch others
 			text += `<script>
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('https://${worker_url}/serviceworkers/.httpsw?ophost=${target}').then((registration) => {
+    navigator.serviceWorker.register('https://${worker_url}/.sw.httpsw?ophost=${target}').then((registration) => {
         console.log('[OPHOST] Service worker registered with scope: ', registration.scope)
     }, (err) => {
         console.log('[OPHOST] ServiceWorker registration failed: ', err)
