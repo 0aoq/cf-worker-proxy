@@ -134,7 +134,7 @@ self.addEventListener('fetch', function (event) {
 		"headers": new Headers({
 			"Content-Type": data.headers.get("Content-Type"),
 			"Referer": `https://${worker_url}/?ophost=${target}`,
-			"Set-Cookie": `ophost=${target}`
+			"Set-Cookie": `ophost=${target}; SameSite=Lax; Secure; HttpOnly`
 		})
 	})
 
