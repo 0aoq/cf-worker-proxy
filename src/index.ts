@@ -8,7 +8,7 @@
 // @ts-ignore
 import missinghost from "./missinghost.html"
 
-export interface Env {}
+export interface Env { }
 
 addEventListener("fetch", event => {
 	event.respondWith(handleRequest(event.request))
@@ -127,7 +127,7 @@ self.addEventListener('fetch', function (event) {
 	let initialFetchOptions = {
 		"headers": {
 			"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0",
-			"Referer": `https://${target}`, 
+			"Referer": `https://${target}`,
 			"Origin": `https://${target}`
 		},
 		"method": request.method
@@ -164,9 +164,11 @@ self.addEventListener('fetch', function (event) {
 		text = text.replaceAll("\"></script>", `?ophost=${target}\"></script>`)
 		text = text.replaceAll(".js\"", `.js?ophost=${target}\"`)
 		text = text.replaceAll(".css\"", `.css?ophost=${target}\"`)
+		text = text.replaceAll(".html\"", `.html?ophost=${target}\"`)
 
 		if (ContentType.includes("text/html")) {
-			if (refParams["ophost"] !== undefined && params["ophost"] === undefined) {
+			if (refParams["ophost"] !== undefined && params["ophost"] === undefined
+				|| cookieHost !== undefined && params["ophost"] === undefined) {
 				// if our host url came from the ref params, add it to this page's params
 				text = `<script>
                     if (window.location.href.includes("?")) {
