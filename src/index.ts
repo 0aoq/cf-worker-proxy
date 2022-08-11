@@ -7,6 +7,7 @@
 
 // @ts-ignore
 import missinghost from "./missinghost.html"
+import blockList from "./blockList"
 
 export interface Env { }
 
@@ -73,7 +74,11 @@ async function handleRequest(request: Request): Promise<Response> {
 	const target = params["ophost"] || refParams["ophost"] || cookieHost
 	url.hostname = target
 
-	if (url.pathname === "/.sw.httpsw") {
+	if (url.pathname.includes("/.drop")) return new Response(`Dropped resource: ${url.href} (target: ${target})`, {
+		status: 200, statusText: "Dropped resource"
+	})
+
+	if (url.pathname.includes("/.sw.httpsw")) {
 		return new Response(`// generated ${new Date().toISOString()}
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting())
@@ -99,12 +104,11 @@ async function handleRequest(request) {
 	)
 
 	newurl.hostname = "${worker_url}"
+	self.clients.openWindow(newurl.href)
 
 	let req = new Request(newurl.href, {
 		"headers": {
-			"referer": "https://${worker_url}/?ophost=${target}",
-			"x-sw-intercept": "true; https://${worker_url}/.sw.httpsw/",
-			"x-renav": "https://${worker_url}/.navigate"
+			"Referer": "https://${worker_url}/?ophost=${target}"
 		}
 	})
 
@@ -145,7 +149,11 @@ self.addEventListener('fetch', function (event) {
 		"headers": new Headers({
 			"Content-Type": data.headers.get("Content-Type"),
 			"Referer": `https://${worker_url}/?ophost=${target}`,
-			"Set-Cookie": `ophost=${target}; SameSite=Lax; Secure; HttpOnly`
+			"Set-Cookie": url.pathname === "/" ? `ophost=${target}; SameSite=Lax;` : "",
+			"Via": `HTTP/2 ${worker_url} cf-worker-proxy (https://github.com/0aoq/cf-worker-proxy)`,
+			"X-SW-Intercept": `true; https://${worker_url}/.sw.httpsw/`,
+			"X-Renav": `https://${worker_url}/.navigate`,
+			...data.headers
 		})
 	})
 
@@ -165,8 +173,12 @@ self.addEventListener('fetch', function (event) {
 		text = text.replaceAll(".js\"", `.js?ophost=${target}\"`)
 		text = text.replaceAll(".css\"", `.css?ophost=${target}\"`)
 		text = text.replaceAll(".html\"", `.html?ophost=${target}\"`)
+		
+		for (let _block_url of blockList) {
+			text = text.replaceAll(_block_url, `/${worker_url}/.drop/`)
+		}
 
-		if (ContentType.includes("text/html")) {
+		if (ContentType.includes("text/html") && text.includes("<title")) {
 			if (refParams["ophost"] !== undefined && params["ophost"] === undefined
 				|| cookieHost !== undefined && params["ophost"] === undefined) {
 				// if our host url came from the ref params, add it to this page's params
@@ -182,9 +194,9 @@ self.addEventListener('fetch', function (event) {
 			}
 
 			// register a service worker to try to catch others
-			text += `<script>
+			text += `<script async>
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('https://${worker_url}/.sw.httpsw?ophost=${target}').then((registration) => {
+    navigator.serviceWorker.register('.sw.httpsw?ophost=${target}').then((registration) => {
         console.log('[OPHOST] Service worker registered with scope: ', registration.scope)
     }, (err) => {
         console.log('[OPHOST] ServiceWorker registration failed: ', err)
