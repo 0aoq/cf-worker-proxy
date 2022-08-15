@@ -207,8 +207,8 @@ async function handleRequest(request: Request): Promise<Response> {
                     request.headers.get("X-Proxy-Inject") ||
                     params["x-proxy-inject"] ||
                     refParams["x-proxy-inject"];
-                text += `<script type="module">${decodeURI(
-                    code.replace(/\+/g, " ")
+                text += `<script type="module">${decodeURIComponent(
+                    code.replaceAll(/\+/g, " ")
                 )}</script>`;
             }
         }

@@ -53,7 +53,7 @@
             const url = new URL(e.target.url.value);
 
             // get the value of the inject page from the proxy
-            window.open(`${window.location.protocol}${url.pathname}?ophost=${url.hostname}&x-proxy-inject=${encodeURI(e.target.code.value)}`);
+            window.open(`${window.location.protocol}${url.pathname}?ophost=${url.hostname}&x-proxy-inject=${encodeURIComponent(e.target.code.value)}`);
         })
     </script>
 </body>
