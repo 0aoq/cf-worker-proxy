@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Injection Builder</title>
+
+    <link rel="stylesheet" href="https://start.oxvs.net/shared/css/style.css">
+
+    <style>
+        :root {
+            --lightness-mod: -15%;
+            /* nice darker theme */
+        }
+
+        main {
+            display: grid;
+            place-items: center;
+            height: var(--u-h-screen);
+        }
+
+        input {
+            background: var(--bg-surface);
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <card style="width: calc(var(--u-64) * 2);" class="mobile-max">
+            <details>
+                <summary>Injection Builder</summary>
+
+                <form id="pi-builder">
+                    <p class="mt-4 mb-2"><b>URL</b></p>
+                    <input type="url" name="url" placeholder="URL">
+
+                    <p class="mt-4 mb-2"><b>Code</b></p>
+                    <input type="text" name="code" placeholder="Code">
+
+                    <button class="btn btn.primary mt-8" style="width: 100%;">Open</button>
+                </form>
+            </details>
+        </card>
+    </main>
+
+    <script>
+        document.getElementById("pi-builder").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const url = new URL(e.target.url.value);
+
+            // get the value of the inject page from the proxy
+            window.open(`${window.location.protocol}${url.pathname}?ophost=${url.hostname}&x-proxy-inject=${encodeURI(e.target.code.value)}`);
+        })
+    </script>
+</body>
+
+</html>

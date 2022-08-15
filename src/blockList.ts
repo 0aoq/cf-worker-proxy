@@ -1,3 +1,1 @@
-export default [
-    "\/.*.doubleclick.net"
-]
+export default ["/.*.doubleclick.net"];

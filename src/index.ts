@@ -6,208 +6,213 @@
  */
 
 // @ts-ignore
-import missinghost from "./missinghost.html"
-import blockList from "./blockList"
+import missinghost from "./missinghost.html";
 
-export interface Env { }
+// @ts-ignore
+import injectionPage from "./injection.html";
 
-addEventListener("fetch", event => {
-	event.respondWith(handleRequest(event.request))
-})
+import blockList from "./blockList";
+
+export interface Env {}
+
+addEventListener("fetch", (event) => {
+    event.respondWith(handleRequest(event.request));
+});
 
 /**
  * @function getParams
  * @description Return the URLSearchParams for a URL
- * 
+ *
  * @param {string} _url URL to get the search params from
  * @returns {any} params object
  */
 function getParams(_url: string): any {
-	const params = {} as any
-	const url = new URL(_url)
-	const queryString = url.search.slice(1).split('&')
+    const params = {} as any;
+    const url = new URL(_url);
+    const queryString = url.search.slice(1).split("&");
 
-	for (let item of queryString) {
-		const kv = item.split('=') as string[]
-		if (kv[0]) params[kv[0]] = kv[1] || true
-	}
+    for (let item of queryString) {
+        const kv = item.split("=") as string[];
+        if (kv[0]) params[kv[0]] = kv[1] || true;
+    }
 
-	return params
+    return params;
 }
 
 /**
  * @function resolveCookieOPHOST
  * @description Get the OPHOST from a browser cookie
- * 
+ *
  * @param {Request} request
  * @returns {string | undefined}
  */
 function resolveCookieOPHOST(request: Request) {
-	const cookieHeader = request.headers.get("cookie")
-	if (!cookieHeader) return undefined
-	if (!cookieHeader.split("ophost=")[1]) return undefined
-	return cookieHeader.split("ophost=")[1].split(";")[0]
+    const cookieHeader = request.headers.get("cookie");
+    if (!cookieHeader) return undefined;
+    if (!cookieHeader.split("ophost=")[1]) return undefined;
+    return cookieHeader.split("ophost=")[1].split(";")[0];
 }
 
 /**
  * @function handleRequest
  * @description Handle a request to the worker
- * 
- * @param {Request} request 
+ *
+ * @param {Request} request
  * @returns {Promise<Response>}
  */
 async function handleRequest(request: Request): Promise<Response> {
-	const worker_url = "resolve.oxvs.net" // CHANGE THIS BEFORE DEPLOY, WILL BE USED FOR FINDING SERVICEWORKER AND OTHER CONTENT
-	const url = new URL(request.url)
+    const url = new URL(request.url);
 
-	const params = getParams(request.url)
-	const refParams = getParams(request.headers.get("Referer") || request.url)
-	const cookieHost = resolveCookieOPHOST(request)
+    // OPTIONS
+    const cors = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "*",
+        "Access-Control-Max-Age": "86400",
+    };
 
-	if (
-		// make sure we have a valid ophost before proceeding
-		!params["ophost"]
-		&& !refParams["ophost"]
-		&& !cookieHost
-	) return new Response(missinghost, { status: 400, headers: { "content-type": "text/html" } })
+    if (request.method === "OPTIONS") {
+        return new Response(null, {
+            headers: new Headers({
+                Allow: "GET, HEAD, POST, OPTIONS",
+                ...request.headers,
+                ...cors,
+            }),
+        });
+    }
 
-	const target = params["ophost"] || refParams["ophost"] || cookieHost
-	url.hostname = target
+    // pages
+    if (url.pathname === "/.navigate" || url.pathname === "/.nav") {
+        return new Response(missinghost, {
+            status: 200,
+            headers: { "content-type": "text/html" },
+        });
+    } else if (url.pathname === "/.inject" || url.pathname === "/.pi") {
+        return new Response(injectionPage, {
+            status: 200,
+            headers: { "content-type": "text/html" },
+        });
+    }
 
-	if (url.pathname.includes("/.drop")) return new Response(`Dropped resource: ${url.href} (target: ${target})`, {
-		status: 200, statusText: "Dropped resource"
-	})
+    // basic proxy
+    const worker_url = "resolve.oxvs.net"; // CHANGE THIS BEFORE DEPLOY, WILL BE USED FOR FINDING SERVICEWORKER AND OTHER CONTENT
 
-	if (url.pathname.includes("/.sw.httpsw")) {
-		return new Response(`// generated ${new Date().toISOString()}
-self.addEventListener('install', event => {
-  event.waitUntil(self.skipWaiting())
-});
+    const params = getParams(request.url);
+    const refParams = getParams(request.headers.get("Referer") || request.url);
+    const cookieHost = resolveCookieOPHOST(request);
 
-self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim())
-})
+    if (
+        // make sure we have a valid ophost before proceeding
+        !params["ophost"] &&
+        !refParams["ophost"] &&
+        !cookieHost
+    )
+        return new Response(missinghost, {
+            status: 400,
+            headers: { "content-type": "text/html" },
+        });
 
-async function handleRequest(request) {
-	// intercept http traffic and append the ophost
-	let newurl = new URL(request.url)
+    const target = params["ophost"] || refParams["ophost"] || cookieHost;
+    url.hostname = target;
 
-	const _params = {
-		"ophost": newurl.hostname // fetch it from the other server
-	}
+    if (url.pathname.includes("/.drop"))
+        return new Response(
+            `Dropped resource: ${url.href} (target: ${target})`,
+            {
+                status: 200,
+                statusText: "Dropped resource",
+            }
+        );
 
-	newurl = new URL(
-		\`\${newurl.origin}\${newurl.pathname}?\${new URLSearchParams([
-			...Array.from(newurl.searchParams.entries()),
-			...Object.entries(_params),
-		]).toString()}\`
-	)
+    let initialFetchOptions = {
+        headers: {
+            "User-Agent":
+                "Mozilla/5.0 (X11; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0",
+            Referer: `https://${target}`,
+            Origin: `https://${target}`,
+        },
+        method: request.method,
+    };
 
-	newurl.hostname = "${worker_url}"
-	self.clients.openWindow(newurl.href)
+    if (
+        initialFetchOptions.method !== "GET" &&
+        initialFetchOptions.method !== "HEAD"
+    ) {
+        // @ts-ignore
+        initialFetchOptions.body = decodeURIComponent(await request.text());
+    }
 
-	let req = new Request(newurl.href, {
-		"headers": {
-			"Referer": "https://${worker_url}/?ophost=${target}"
-		}
-	})
+    const data = await fetch(url.href, initialFetchOptions);
 
-	return fetch(newurl, req)
-}
+    let req = new Request(url.href, {
+        // @ts-ignore
+        headers: new Headers({
+            "Content-Type": data.headers.get("Content-Type"),
+            Referer: `https://${worker_url}/?ophost=${target}`,
+            "Set-Cookie":
+                url.pathname === "/" ? `ophost=${target}; SameSite=Lax;` : "",
+            Via: `${worker_url} cf-worker-proxy (https://github.com/0aoq/cf-worker-proxy)`,
+            "X-Renav": `https://${worker_url}/.navigate`,
+            ...data.headers,
+            ...cors,
+        }),
+    });
 
-self.addEventListener('fetch', function (event) {
-	if (new URL(event.request.url).hostname === "${worker_url}") return // requesting an already proxied service
-    event.respondWith(handleRequest(event.request))
-})`, {
-			"headers": {
-				"content-type": "text/javascript;charset=UTF-8",
-			},
-			"status": 200
-		})
-	} else if (url.pathname === "/.navigate" || url.pathname === "/.nav") {
-		return new Response(missinghost, { status: 200, headers: { "content-type": "text/html" } })
-	}
+    const ContentType: string = req.headers.get("Content-Type") as string;
 
-	let initialFetchOptions = {
-		"headers": {
-			"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0",
-			"Referer": `https://${target}`,
-			"Origin": `https://${target}`
-		},
-		"method": request.method
-	}
+    let isBadContentType =
+        ContentType.startsWith("image/") || // make sure we don't try to modify a content-type that we can't convert to text
+        ContentType.startsWith("text/plain") ||
+        ContentType.startsWith("application/font-") ||
+        ContentType.startsWith("font/");
 
-	if (initialFetchOptions.method !== "GET" && initialFetchOptions.method !== "HEAD") {
-		// @ts-ignore
-		initialFetchOptions.body = decodeURIComponent(await request.text())
-	}
+    if (isBadContentType) {
+        return data;
+    } else {
+        let text = await data.text();
+        text = text.replaceAll(`https://${target}/`, `https://${worker_url}/`);
+        text = text.replaceAll('"></script>', `?ophost=${target}\"></script>`);
+        text = text.replaceAll('.js"', `.js?ophost=${target}\"`);
+        text = text.replaceAll('.css"', `.css?ophost=${target}\"`);
+        text = text.replaceAll('.html"', `.html?ophost=${target}\"`);
 
-	const data = await fetch(url.href, initialFetchOptions)
+        for (let _block_url of blockList) {
+            text = text.replaceAll(_block_url, `/${worker_url}/.drop/`);
+        }
 
-	let req = new Request(url.href, {
-		// @ts-ignore
-		"headers": new Headers({
-			"Content-Type": data.headers.get("Content-Type"),
-			"Referer": `https://${worker_url}/?ophost=${target}`,
-			"Set-Cookie": url.pathname === "/" ? `ophost=${target}; SameSite=Lax;` : "",
-			"Via": `HTTP/2 ${worker_url} cf-worker-proxy (https://github.com/0aoq/cf-worker-proxy)`,
-			"X-SW-Intercept": `true; https://${worker_url}/.sw.httpsw/`,
-			"X-Renav": `https://${worker_url}/.navigate`,
-			...data.headers
-		})
-	})
-
-	const ContentType: string = req.headers.get("Content-Type") as string
-
-	let isBadContentType = ContentType.startsWith("image/") || // make sure we don't try to modify a content-type that we can't convert to text
-		ContentType.startsWith("text/plain") ||
-		ContentType.startsWith("application/font-") ||
-		ContentType.startsWith("font/")
-
-	if (isBadContentType) {
-		return data
-	} else {
-		let text = await data.text()
-		text = text.replaceAll(`https://${target}/`, `https://${worker_url}/`)
-		text = text.replaceAll("\"></script>", `?ophost=${target}\"></script>`)
-		text = text.replaceAll(".js\"", `.js?ophost=${target}\"`)
-		text = text.replaceAll(".css\"", `.css?ophost=${target}\"`)
-		text = text.replaceAll(".html\"", `.html?ophost=${target}\"`)
-		
-		for (let _block_url of blockList) {
-			text = text.replaceAll(_block_url, `/${worker_url}/.drop/`)
-		}
-
-		if (ContentType.includes("text/html") && text.includes("<title")) {
-			if (refParams["ophost"] !== undefined && params["ophost"] === undefined
-				|| cookieHost !== undefined && params["ophost"] === undefined) {
-				// if our host url came from the ref params, add it to this page's params
-				text = `<script>
+        if (ContentType.includes("text/html") && text.includes("<title")) {
+            if (
+                (refParams["ophost"] !== undefined &&
+                    params["ophost"] === undefined) ||
+                (cookieHost !== undefined && params["ophost"] === undefined)
+            ) {
+                // if our host url came from the ref params, add it to this page's params
+                text = `<script>
                     if (window.location.href.includes("?")) {
                         window.location.href = \`\${window.location.href}&ophost=${target}\`
                     } else {
                         window.location.href = "?ophost=${target}"
                     }
-                </script>`
-			} else {
-				text += `<script>window.localStorage.setItem("OP-HOST", "${target}")</script>`
-			}
+                </script>`;
+            } else {
+                text += `<script>window.localStorage.setItem("OP-HOST", "${target}")</script>`;
+            }
 
-			// register a service worker to try to catch others
-			text += `<script async>
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('.sw.httpsw?ophost=${target}').then((registration) => {
-        console.log('[OPHOST] Service worker registered with scope: ', registration.scope)
-    }, (err) => {
-        console.log('[OPHOST] ServiceWorker registration failed: ', err)
-    });
+            // inject code if given
+            if (
+                request.headers.get("X-Proxy-Inject") ||
+                params["x-proxy-inject"] ||
+                refParams["x-proxy-inject"]
+            ) {
+                const code =
+                    request.headers.get("X-Proxy-Inject") ||
+                    params["x-proxy-inject"] ||
+                    refParams["x-proxy-inject"];
+                text += `<script type="module">${decodeURI(
+                    code.replace(/\+/g, " ")
+                )}</script>`;
+            }
+        }
 
-    (async () => {
-        await navigator.serviceWorker.ready
-    })();
-}</script>`
-		}
-
-		return new Response(text, req)
-	}
+        return new Response(text, req);
+    }
 }
