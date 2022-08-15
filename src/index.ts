@@ -6,10 +6,10 @@
  */
 
 // @ts-ignore
-import missinghost from "./missinghost.html";
+import missinghost from "./pages/missinghost.html";
 
 // @ts-ignore
-import injectionPage from "./injection.html";
+import injectionPage from "./pages/injection.html";
 
 import blockList from "./blockList";
 
