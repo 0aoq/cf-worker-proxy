@@ -211,6 +211,17 @@ async function handleRequest(request: Request): Promise<Response> {
                     code.replaceAll(/\+/g, " ")
                 )}</script>`;
             }
+
+            // add watermelonjs
+            text += `<script defer type="module">
+                // add anchor
+                for (let anchor of document.querySelectorAll("a")) {
+                    const aURL = new URL(anchor.href)
+                    aURL.searchParams.set("ophost", "${target}")
+
+                    anchor.href = aURL.href
+                }
+            </script>`
         }
 
         return new Response(text, req);
